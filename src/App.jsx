@@ -14,7 +14,7 @@ function App() {
       <nav className="navbar navbar-expand-lg navbar-dark bg-dark shadow">
         <div className="container">
           <Link className="navbar-brand fw-bold" to="/">
-            🚀 Project Tracker
+            Project Tracker
           </Link>
 
           <div className="navbar-nav ms-auto align-items-center">
