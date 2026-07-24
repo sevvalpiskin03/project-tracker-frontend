@@ -11,6 +11,13 @@ const PAGE_SIZE_OPTIONS = [5, 10, 20];
 
 function Users({ isAdminMode }) {
   const [users, setUsers] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [projectMembers, setProjectMembers] = useState([]);
+
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [detailsLoading, setDetailsLoading] = useState(false);
 
   const [formData, setFormData] = useState(EMPTY_FORM);
   const [editingUserId, setEditingUserId] = useState(null);
@@ -27,6 +34,45 @@ function Users({ isAdminMode }) {
 
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+
+  const fetchRelatedData = async () => {
+    try {
+      setDetailsLoading(true);
+
+      const [projectsResponse, tasksResponse, membersResponse] =
+        await Promise.all([
+          api.get("/projects"),
+          api.get("/projecttasks"),
+          api.get("/projectmembers"),
+        ]);
+
+      setProjects(
+        Array.isArray(projectsResponse.data)
+          ? projectsResponse.data
+          : []
+      );
+
+      setTasks(
+        Array.isArray(tasksResponse.data)
+          ? tasksResponse.data
+          : []
+      );
+
+      setProjectMembers(
+        Array.isArray(membersResponse.data)
+          ? membersResponse.data
+          : []
+      );
+    } catch (error) {
+      console.error("Member details could not be loaded:", error);
+      setProjects([]);
+      setTasks([]);
+      setProjectMembers([]);
+      setErrorMessage("Member project and task details could not be loaded.");
+    } finally {
+      setDetailsLoading(false);
+    }
+  };
 
   const fetchUsers = async (keyword = "") => {
     try {
@@ -55,6 +101,10 @@ function Users({ isAdminMode }) {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchRelatedData();
+  }, []);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -221,6 +271,111 @@ function Users({ isAdminMode }) {
     } finally {
       setDeletingUserId(null);
     }
+  };
+
+  const openDetailsModal = async (user) => {
+    setSelectedUser(user);
+    setShowDetailsModal(true);
+
+    if (
+      projects.length === 0 &&
+      tasks.length === 0 &&
+      projectMembers.length === 0
+    ) {
+      await fetchRelatedData();
+    }
+  };
+
+  const closeDetailsModal = () => {
+    setShowDetailsModal(false);
+    setSelectedUser(null);
+  };
+
+  const normalizeDate = (dateValue) => {
+    if (!dateValue) {
+      return "";
+    }
+
+    return dateValue.toString().split("T")[0];
+  };
+
+  const formatDate = (dateValue) => {
+    const normalizedDate = normalizeDate(dateValue);
+
+    if (!normalizedDate) {
+      return "-";
+    }
+
+    const [year, month, day] = normalizedDate.split("-");
+
+    if (!year || !month || !day) {
+      return dateValue;
+    }
+
+    return `${day}/${month}/${year}`;
+  };
+
+  const getProjectStatus = (project) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const startDate = project.startDate
+      ? new Date(project.startDate)
+      : null;
+
+    const endDate = project.endDate
+      ? new Date(project.endDate)
+      : null;
+
+    if (startDate) {
+      startDate.setHours(0, 0, 0, 0);
+    }
+
+    if (endDate) {
+      endDate.setHours(0, 0, 0, 0);
+    }
+
+    if (endDate && endDate < today) {
+      return "Completed";
+    }
+
+    if (startDate && startDate > today) {
+      return "Upcoming";
+    }
+
+    return "Active";
+  };
+
+  const getSelectedUserProjectIds = () => {
+    if (!selectedUser) {
+      return [];
+    }
+
+    return projectMembers
+      .filter(
+        (member) =>
+          Number(member.userId) === Number(selectedUser.id)
+      )
+      .map((member) => Number(member.projectId));
+  };
+
+  const getSelectedUserProjects = () => {
+    const projectIds = getSelectedUserProjectIds();
+
+    return projects.filter((project) =>
+      projectIds.includes(Number(project.id))
+    );
+  };
+
+  const getSelectedUserTasks = () => {
+    if (!selectedUser) {
+      return [];
+    }
+
+    return tasks.filter(
+      (task) =>
+        Number(task.assignedUserId) === Number(selectedUser.id)
+    );
   };
 
   const handleClearSearch = () => {
@@ -429,7 +584,11 @@ function Users({ isAdminMode }) {
 
                   <tbody>
                     {paginatedUsers.map((user) => (
-                      <tr key={user.id}>
+                      <tr
+                        key={user.id}
+                        onClick={() => openDetailsModal(user)}
+                        style={{ cursor: "pointer" }}
+                      >
                         <td className="fw-semibold">
                           {user.firstName} {user.lastName}
                         </td>
@@ -442,7 +601,10 @@ function Users({ isAdminMode }) {
                               <button
                                 type="button"
                                 className="btn btn-sm btn-outline-dark"
-                                onClick={() => openEditModal(user)}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  openEditModal(user);
+                                }}
                               >
                                 Edit
                               </button>
@@ -450,7 +612,10 @@ function Users({ isAdminMode }) {
                               <button
                                 type="button"
                                 className="btn btn-sm btn-outline-danger"
-                                onClick={() => handleDelete(user.id)}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  handleDelete(user.id);
+                                }}
                                 disabled={deletingUserId === user.id}
                               >
                                 {deletingUserId === user.id
@@ -539,6 +704,316 @@ function Users({ isAdminMode }) {
           )}
         </div>
       </div>
+
+      {showDetailsModal && selectedUser && (
+        <>
+          <div
+            className="modal fade show d-block"
+            tabIndex="-1"
+            role="dialog"
+            aria-modal="true"
+            style={{ overflowY: "auto" }}
+          >
+            <div className="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <div>
+                    <h4 className="modal-title mb-1">
+                      {selectedUser.firstName} {selectedUser.lastName}
+                    </h4>
+
+                    <small className="text-muted">
+                      {selectedUser.email}
+                    </small>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={closeDetailsModal}
+                    aria-label="Close"
+                  />
+                </div>
+
+                <div className="modal-body">
+                  {detailsLoading ? (
+                    <div className="text-center py-5">
+                      <div
+                        className="spinner-border text-secondary"
+                        role="status"
+                      />
+
+                      <p className="text-muted mt-3 mb-0">
+                        Member details are loading...
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      {(() => {
+                        const memberProjects = getSelectedUserProjects();
+                        const memberTasks = getSelectedUserTasks();
+
+                        const activeProjects = memberProjects.filter(
+                          (project) => getProjectStatus(project) === "Active"
+                        );
+
+                        const completedProjects = memberProjects.filter(
+                          (project) => getProjectStatus(project) === "Completed"
+                        );
+
+                        const completedTasks = memberTasks.filter(
+                          (task) => task.status === "Completed"
+                        );
+
+                        const inProgressTasks = memberTasks.filter(
+                          (task) => task.status === "In Progress"
+                        );
+
+                        const toDoTasks = memberTasks.filter(
+                          (task) => task.status === "To Do"
+                        );
+
+                        return (
+                          <>
+                            <div className="row g-3 mb-4">
+                              <div className="col-md-3">
+                                <div className="border rounded p-3 h-100">
+                                  <small className="text-muted">
+                                    Active Projects
+                                  </small>
+
+                                  <h3 className="mb-0 mt-1">
+                                    {activeProjects.length}
+                                  </h3>
+                                </div>
+                              </div>
+
+                              <div className="col-md-3">
+                                <div className="border rounded p-3 h-100">
+                                  <small className="text-muted">
+                                    Completed Projects
+                                  </small>
+
+                                  <h3 className="mb-0 mt-1">
+                                    {completedProjects.length}
+                                  </h3>
+                                </div>
+                              </div>
+
+                              <div className="col-md-3">
+                                <div className="border rounded p-3 h-100">
+                                  <small className="text-muted">
+                                    Assigned Tasks
+                                  </small>
+
+                                  <h3 className="mb-0 mt-1">
+                                    {memberTasks.length}
+                                  </h3>
+                                </div>
+                              </div>
+
+                              <div className="col-md-3">
+                                <div className="border rounded p-3 h-100">
+                                  <small className="text-muted">
+                                    Completed Tasks
+                                  </small>
+
+                                  <h3 className="mb-0 mt-1">
+                                    {completedTasks.length}
+                                  </h3>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="row g-3 mb-4">
+                              <div className="col-md-6">
+                                <div className="card border-0 bg-light h-100">
+                                  <div className="card-body">
+                                    <div className="d-flex justify-content-between align-items-center mb-3">
+                                      <h5 className="mb-0">Active Projects</h5>
+
+                                      <span className="badge text-bg-success">
+                                        {activeProjects.length}
+                                      </span>
+                                    </div>
+
+                                    {activeProjects.length === 0 ? (
+                                      <p className="text-muted mb-0">
+                                        This member is not currently working on an active project.
+                                      </p>
+                                    ) : (
+                                      <div className="list-group list-group-flush">
+                                        {activeProjects.map((project) => (
+                                          <div
+                                            key={project.id}
+                                            className="list-group-item bg-transparent px-0"
+                                          >
+                                            <div className="fw-semibold">
+                                              {project.name}
+                                            </div>
+
+                                            <small className="text-muted">
+                                              {formatDate(project.startDate)} -{" "}
+                                              {project.endDate
+                                                ? formatDate(project.endDate)
+                                                : "No end date"}
+                                            </small>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="col-md-6">
+                                <div className="card border-0 bg-light h-100">
+                                  <div className="card-body">
+                                    <div className="d-flex justify-content-between align-items-center mb-3">
+                                      <h5 className="mb-0">
+                                        Completed Projects
+                                      </h5>
+
+                                      <span className="badge text-bg-dark">
+                                        {completedProjects.length}
+                                      </span>
+                                    </div>
+
+                                    {completedProjects.length === 0 ? (
+                                      <p className="text-muted mb-0">
+                                        This member does not have a completed project yet.
+                                      </p>
+                                    ) : (
+                                      <div className="list-group list-group-flush">
+                                        {completedProjects.map((project) => (
+                                          <div
+                                            key={project.id}
+                                            className="list-group-item bg-transparent px-0"
+                                          >
+                                            <div className="fw-semibold">
+                                              {project.name}
+                                            </div>
+
+                                            <small className="text-muted">
+                                              Completed on{" "}
+                                              {formatDate(project.endDate)}
+                                            </small>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="border rounded p-3">
+                              <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                                <h5 className="mb-0">Assigned Tasks</h5>
+
+                                <div className="d-flex gap-2">
+                                  <span className="badge text-bg-secondary">
+                                    To Do: {toDoTasks.length}
+                                  </span>
+
+                                  <span className="badge bg-warning text-dark">
+                                    In Progress: {inProgressTasks.length}
+                                  </span>
+
+                                  <span className="badge text-bg-success">
+                                    Completed: {completedTasks.length}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {memberTasks.length === 0 ? (
+                                <p className="text-muted mb-0">
+                                  No tasks have been assigned to this member.
+                                </p>
+                              ) : (
+                                <div className="table-responsive">
+                                  <table className="table table-hover align-middle mb-0">
+                                    <thead className="table-light">
+                                      <tr>
+                                        <th>Task</th>
+                                        <th>Project</th>
+                                        <th>Status</th>
+                                        <th>Due Date</th>
+                                      </tr>
+                                    </thead>
+
+                                    <tbody>
+                                      {memberTasks.map((task) => {
+                                        const taskProject = projects.find(
+                                          (project) =>
+                                            Number(project.id) ===
+                                            Number(task.projectId)
+                                        );
+
+                                        return (
+                                          <tr key={task.id}>
+                                            <td>
+                                              <div className="fw-semibold">
+                                                {task.title}
+                                              </div>
+
+                                              <small className="text-muted">
+                                                {task.description}
+                                              </small>
+                                            </td>
+
+                                            <td>
+                                              {taskProject?.name ??
+                                                "Unknown Project"}
+                                            </td>
+
+                                            <td>
+                                              <span
+                                                className={`badge ${
+                                                  task.status === "Completed"
+                                                    ? "text-bg-success"
+                                                    : task.status ===
+                                                        "In Progress"
+                                                      ? "bg-warning text-dark"
+                                                      : "text-bg-secondary"
+                                                }`}
+                                              >
+                                                {task.status}
+                                              </span>
+                                            </td>
+
+                                            <td>{formatDate(task.dueDate)}</td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </>
+                  )}
+                </div>
+
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-dark"
+                    onClick={closeDetailsModal}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="modal-backdrop fade show" />
+        </>
+      )}
 
       {showMemberModal && (
         <>

@@ -889,7 +889,6 @@ function Projects({ isAdminMode }) {
                 <table className="table table-hover align-middle">
                   <thead className="table-light">
                     <tr>
-                      <th>Details</th>
                       <th>Project</th>
                       <th>Status</th>
                       <th>Members</th>
@@ -929,21 +928,13 @@ function Projects({ isAdminMode }) {
                           );
 
                         return (
-                          <tr key={project.id}>
-                            <td>
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-outline-secondary"
-                                onClick={() =>
-                                  openDetailsModal(
-                                    project
-                                  )
-                                }
-                              >
-                                + Details
-                              </button>
-                            </td>
-
+                          <tr
+                            key={project.id}
+                            onClick={() =>
+                              openDetailsModal(project)
+                            }
+                            style={{ cursor: "pointer" }}
+                          >
                             <td
                               style={{
                                 minWidth:
@@ -1028,11 +1019,10 @@ function Projects({ isAdminMode }) {
                                   <button
                                     type="button"
                                     className="btn btn-sm btn-outline-secondary"
-                                    onClick={() =>
-                                      openMemberModal(
-                                        project
-                                      )
-                                    }
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      openMemberModal(project);
+                                    }}
                                   >
                                     Members
                                   </button>
@@ -1040,11 +1030,10 @@ function Projects({ isAdminMode }) {
                                   <button
                                     type="button"
                                     className="btn btn-sm btn-outline-dark"
-                                    onClick={() =>
-                                      openEditModal(
-                                        project
-                                      )
-                                    }
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      openEditModal(project);
+                                    }}
                                   >
                                     Edit
                                   </button>
@@ -1052,11 +1041,10 @@ function Projects({ isAdminMode }) {
                                   <button
                                     type="button"
                                     className="btn btn-sm btn-outline-danger"
-                                    onClick={() =>
-                                      handleDelete(
-                                        project.id
-                                      )
-                                    }
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      handleDelete(project.id);
+                                    }}
                                     disabled={
                                       deletingProjectId ===
                                       project.id

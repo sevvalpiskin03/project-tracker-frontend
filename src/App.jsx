@@ -23,7 +23,7 @@ function App() {
             </Link>
 
             <Link className="nav-link" to="/users">
-              Users
+              Members
             </Link>
 
             <Link className="nav-link" to="/projects">
