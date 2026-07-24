@@ -37,6 +37,38 @@ const STATUS_FILTERS = [
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20];
 
+const extractArrayFromResponse = (responseData) => {
+  if (Array.isArray(responseData)) {
+    return responseData;
+  }
+
+  if (Array.isArray(responseData?.items)) {
+    return responseData.items;
+  }
+
+  if (Array.isArray(responseData?.data)) {
+    return responseData.data;
+  }
+
+  if (Array.isArray(responseData?.results)) {
+    return responseData.results;
+  }
+
+  if (Array.isArray(responseData?.value)) {
+    return responseData.value;
+  }
+
+  if (Array.isArray(responseData?.$values)) {
+    return responseData.$values;
+  }
+
+  if (Array.isArray(responseData?.data?.items)) {
+    return responseData.data.items;
+  }
+
+  return [];
+};
+
 function Tasks({ isAdminMode }) {
   const [tasks, setTasks] = useState([]);
   const [projects, setProjects] = useState([]);
@@ -126,10 +158,15 @@ function Tasks({ isAdminMode }) {
         axios.get(PROJECT_MEMBERS_API_URL),
       ]);
 
+      console.log(
+        "ProjectTasks response:",
+        tasksResponse.data
+      );
+
       setTasks(
-        Array.isArray(tasksResponse.data)
-          ? tasksResponse.data
-          : []
+        extractArrayFromResponse(
+          tasksResponse.data
+        )
       );
 
       setProjects(
@@ -187,10 +224,15 @@ function Tasks({ isAdminMode }) {
         );
       }
 
+      console.log(
+        "Filtered ProjectTasks response:",
+        response.data
+      );
+
       setTasks(
-        Array.isArray(response.data)
-          ? response.data
-          : []
+        extractArrayFromResponse(
+          response.data
+        )
       );
     } catch (error) {
       console.error(
